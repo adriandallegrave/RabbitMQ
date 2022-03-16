@@ -46,12 +46,6 @@ namespace ExploreCalifornia.WebApp.Controllers
             var connection = factory.CreateConnection();
             var channel = connection.CreateModel();
 
-            // This change alone is useless
-            // It's needed to access RabbitMQ and delete the current exchange first
-            // Because it's already registered as a fanout type
-
-            //channel.ExchangeDeclare("webappExchange", ExchangeType.Direct, true);
-
             var bytes = Encoding.UTF8.GetBytes(message);
             channel.BasicPublish("webappExchange", routingKey, null, bytes);
 
