@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using RabbitMQ.Client;
+using System;
+using System.Text;
 
 namespace ExploreCalifornia.WebApp.Controllers
 {
@@ -18,28 +15,11 @@ namespace ExploreCalifornia.WebApp.Controllers
         {
             var tourname = Request.Form["tourname"];
             var name = Request.Form["name"];
-            var email= Request.Form["email"];
+            var email = Request.Form["email"];
             var needsTransport = Request.Form["transport"] == "on";
 
-            // 'RabbitMQ Service - start' on Windows start menu
-            // Access localhost:15672
-            // Sign in with username: guest password: guest
-            // Run this code and book a tour. There will be a spike in messages
-
-            var factory = new ConnectionFactory();
-            factory.Uri = new Uri("amqp://guest:guest@localhost:5672");
-
-            var connection = factory.CreateConnection();
-            var channel = connection.CreateModel();
-
-            channel.ExchangeDeclare("webappExchange", ExchangeType.Fanout, true);
-
             var message = $"{tourname};{name};{email}";
-            var bytes = System.Text.Encoding.UTF8.GetBytes(message);
-            channel.BasicPublish("webappExchange", "", null, bytes);
-
-            channel.Close();
-            connection.Close();
+            SendMessage("tour.booked", message);
 
             return Redirect($"/BookingConfirmed?tourname={tourname}&name={name}&email={email}");
         }
@@ -53,9 +33,30 @@ namespace ExploreCalifornia.WebApp.Controllers
             var email = Request.Form["email"];
             var cancelReason = Request.Form["reason"];
 
-            // Send cancel message here
+            var message = $"{tourname};{name};{email};{cancelReason}";
+            SendMessage("tour.canceled", message);
 
             return Redirect($"/BookingCanceled?tourname={tourname}&name={name}");
+        }
+
+        private void SendMessage(string routingKey, string message)
+        {
+            var factory = new ConnectionFactory();
+            factory.Uri = new Uri("amqp://guest:guest@localhost:5672");
+            var connection = factory.CreateConnection();
+            var channel = connection.CreateModel();
+
+            // This change alone is useless
+            // It's needed to access RabbitMQ and delete the current exchange first
+            // Because it's already registered as a fanout type
+
+            //channel.ExchangeDeclare("webappExchange", ExchangeType.Direct, true);
+
+            var bytes = Encoding.UTF8.GetBytes(message);
+            channel.BasicPublish("webappExchange", routingKey, null, bytes);
+
+            channel.Close();
+            connection.Close();
         }
     }
 }
