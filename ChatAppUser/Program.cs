@@ -1,7 +1,12 @@
 ﻿using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
-// Creating connection
+var chatRooms = new List<string>
+{
+    "Sports",
+    "Politics",
+    "General"
+};
 
 var factory = new ConnectionFactory();
 factory.Uri = new Uri("amqp://guest:guest@localhost:5672");
@@ -10,13 +15,17 @@ var connection = factory.CreateConnection();
 var channel = connection.CreateModel();
 
 Console.WriteLine("Choose a username: ");
-string USERNAME = Console.ReadLine()!;
+string username = Console.ReadLine()!;
 Console.Clear();
 
-// Creating a queue and consuming
+Console.WriteLine("Available chat rooms: Sports, Politics, General");
+Console.WriteLine("Choose a chatroom: ");
+string chosenRoom = Console.ReadLine()!;
+if (!chatRooms.Contains(chosenRoom)) chosenRoom = "General";
+Console.Clear();
 
-channel.QueueDeclare($"QUEUE.{USERNAME}.CHAT_APP", false, false, true);
-channel.QueueBind($"QUEUE.{USERNAME}.CHAT_APP", "EXCHANGE.CHAT_APP", "");
+channel.QueueDeclare($"QUEUE.{username}.CHAT_APP.{chosenRoom}", false, false, true);
+channel.QueueBind($"QUEUE.{username}.CHAT_APP.{chosenRoom}", $"EXCHANGE.CHAT_APP", $"CHANNEL.{chosenRoom}");
 
 var consumer = new EventingBasicConsumer(channel);
 consumer.Received += (sender, eventArgs) =>
@@ -26,12 +35,10 @@ consumer.Received += (sender, eventArgs) =>
     Console.WriteLine(msg);
 };
 
-channel.BasicConsume($"QUEUE.{USERNAME}.CHAT_APP", true, consumer);
+channel.BasicConsume($"QUEUE.{username}.CHAT_APP.{chosenRoom}", true, consumer);
 
 
-// Finishing it up
-
-string message = $"{USERNAME} joined the chat";
+string message = $"{username} joined the chat";
 var messageInBytes = System.Text.Encoding.UTF8.GetBytes(message);
 channel.BasicPublish("EXCHANGE.CHAT_APP", "", null, messageInBytes);
 
@@ -46,11 +53,11 @@ while (keepGoing)
     if (message == "quit")
     {
         keepGoing = false;
-        message = $"{USERNAME} left the room";
+        message = $"{username} left the room";
     }
-    message = keepGoing ? $"{USERNAME}: {message}" : $"{message}";
+    message = keepGoing ? $"{username}: {message}" : $"{message}";
     messageInBytes = System.Text.Encoding.UTF8.GetBytes(message);
-    channel.BasicPublish("EXCHANGE.CHAT_APP", "", null, messageInBytes);
+    channel.BasicPublish($"EXCHANGE.CHAT_APP", $"CHANNEL.{chosenRoom}", null, messageInBytes);
 }
 
 channel.Close();
