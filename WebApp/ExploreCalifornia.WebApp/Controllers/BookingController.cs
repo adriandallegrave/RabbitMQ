@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using RabbitMQ.Client;
 using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace ExploreCalifornia.WebApp.Controllers
@@ -19,7 +20,23 @@ namespace ExploreCalifornia.WebApp.Controllers
             var needsTransport = Request.Form["transport"] == "on";
 
             var message = $"{tourname};{name};{email}";
-            SendMessage("tour.booked", message);
+            var headers = new Dictionary<string, object>
+            {
+                {"subject", "tour"},
+                {"action", "booked"}
+            };
+            SendMessage(headers, message);
+
+            if (needsTransport)
+            {
+                var needsTransportHeaders = new Dictionary<string, object>
+                {
+                    {"subject", "transport"},
+                    {"action", "booked"}
+                };
+
+                SendMessage(needsTransportHeaders, message);
+            }
 
             return Redirect($"/BookingConfirmed?tourname={tourname}&name={name}&email={email}");
         }
@@ -34,12 +51,18 @@ namespace ExploreCalifornia.WebApp.Controllers
             var cancelReason = Request.Form["reason"];
 
             var message = $"{tourname};{name};{email};{cancelReason}";
-            SendMessage("tour.canceled", message);
+            var headers = new Dictionary<string, object>
+            {
+                {"subject", "tour"},
+                {"action", "canceled"}
+            };
+
+            SendMessage(headers, message);
 
             return Redirect($"/BookingCanceled?tourname={tourname}&name={name}");
         }
 
-        private void SendMessage(string routingKey, string message)
+        private void SendMessage(IDictionary<string, object> headers, string message)
         {
             var factory = new ConnectionFactory();
             factory.Uri = new Uri("amqp://guest:guest@localhost:5672");
@@ -47,7 +70,9 @@ namespace ExploreCalifornia.WebApp.Controllers
             var channel = connection.CreateModel();
 
             var bytes = Encoding.UTF8.GetBytes(message);
-            channel.BasicPublish("webappExchange", routingKey, null, bytes);
+            var props = new RabbitMQ.Client.Framing.BasicProperties();
+            props.Headers = headers;
+            channel.BasicPublish("webappExchange", "", props, bytes);
 
             channel.Close();
             connection.Close();
