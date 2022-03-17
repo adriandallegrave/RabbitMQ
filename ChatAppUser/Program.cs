@@ -10,7 +10,8 @@ var connection = factory.CreateConnection();
 var channel = connection.CreateModel();
 
 Console.WriteLine("Choose a username: ");
-string? USERNAME = Console.ReadLine();
+string USERNAME = Console.ReadLine()!;
+Console.Clear();
 
 // Creating a queue and consuming
 
@@ -30,18 +31,24 @@ channel.BasicConsume($"QUEUE.{USERNAME}.CHAT_APP", true, consumer);
 
 // Finishing it up
 
-bool keepGoing = true;
-string message = "n";
+string message = $"{USERNAME} joined the chat";
 var messageInBytes = System.Text.Encoding.UTF8.GetBytes(message);
+channel.BasicPublish("EXCHANGE.CHAT_APP", "", null, messageInBytes);
+
+bool keepGoing = true;
 
 while (keepGoing)
 {
     message = Console.ReadLine()!;
+    
+    ClearCurrentConsoleLine();
+
     if (message == "quit")
     {
         keepGoing = false;
+        message = $"{USERNAME} left the room";
     }
-    message = $"{USERNAME}: {message}";
+    message = keepGoing ? $"{USERNAME}: {message}" : $"{message}";
     messageInBytes = System.Text.Encoding.UTF8.GetBytes(message);
     channel.BasicPublish("EXCHANGE.CHAT_APP", "", null, messageInBytes);
 }
@@ -49,59 +56,11 @@ while (keepGoing)
 channel.Close();
 connection.Close();
 
-
-
-
-
-
-
-
-/*
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using RabbitMQ.Client;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using RabbitMQ.Client;
-using RabbitMQ.Client.Events;
-*/
-
-
-
-
-
-
-
-
-/*
-var factory = new ConnectionFactory();
-factory.Uri = new Uri("amqp://guest:guest@localhost:5672");
-var connection = factory.CreateConnection();
-var channel = connection.CreateModel();
-
-channel.QueueDeclare("emailServiceQueue", true, false, false);
-channel.QueueBind("emailServiceQueue", "webappExchange", "");
-
-var consumer = new EventingBasicConsumer(channel);
-consumer.Received += (sender, eventArgs) =>
+static void ClearCurrentConsoleLine()
 {
-    var body = eventArgs.Body.ToArray();
-    var msg = System.Text.Encoding.UTF8.GetString(body);
-    Console.WriteLine(msg);
-};
-
-channel.BasicConsume("emailServiceQueue", true, consumer);
-
-
-*/
+    Console.SetCursorPosition(0, Console.CursorTop - 1);
+    int currentCursorLine = Console.CursorTop;
+    Console.SetCursorPosition(0, Console.CursorTop);
+    Console.Write(new string(' ', Console.WindowWidth));
+    Console.SetCursorPosition(0, currentCursorLine);
+}
